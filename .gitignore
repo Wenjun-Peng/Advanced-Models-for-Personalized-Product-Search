@@ -1,5 +1,7 @@
 .DS_Store
 *.zip
 *.txt
+*.pyc
 /.idea/
 /datasets/
+
