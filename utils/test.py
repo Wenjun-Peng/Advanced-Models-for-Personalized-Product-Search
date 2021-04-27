@@ -27,16 +27,13 @@ def test_all_items(model, data_set, is_show, item_num, device):
     HR_at10s = []
 
     # init with tensor for parallel
-    decay_ratios = torch.tensor([np.log2(i + 2) for i in range(10)])
+    decay_ratios = torch.Tensor([np.log2(i + 2) for i in range(10)])
     res = torch.zeros(item_num)
-    items = torch.tensor([[i, ] for i in range(item_num)])
     lastQid = test_set[0][1]
     test_set.append([-1, -1, -1, -1, -1, -1, -1, -1])
     # res_copy = copy.deepcopy(res)
     idcg_at5 = 0
     idcg_at10 = 0
-    ihit_at5 = 0
-    ihit_at10 = 0
     count = 0
     for info_needed in test_set:
         query_index = info_needed[1]
@@ -46,7 +43,7 @@ def test_all_items(model, data_set, is_show, item_num, device):
         if user_index == -1:
             break
 
-        item_index = info_needed[2]
+        item_index = int(info_needed[2])
         res[item_index] = 1
 
         # every row means a click

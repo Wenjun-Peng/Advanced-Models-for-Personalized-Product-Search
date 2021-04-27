@@ -19,7 +19,7 @@ from structures.HRNN import HRNN_simple
 def parse_args(args=None):
     parser = argparse.ArgumentParser(
         description='Training and Testing graph embedding for personalized search',
-        usage='train.py [<args>] [-h | --help]'
+        usage='main.py [<args>] [-h | --help]'
     )
 
     parser.add_argument('--structure_name', default="HEM")
@@ -50,7 +50,11 @@ def load_data(structure_name, data_root):
     '''
 
     data_dict = {}
-    data_dir = os.path.join(data_root, "for" + structure_name)
+
+    if structure_name == "HEM" or structure_name == "ZAM":
+        data_dir = os.path.join(data_root, "forEM")
+    elif structure_name == "HRNN":
+        data_dir = os.path.join(data_root, "forHRNN")
 
     item_title_map_path = os.path.join(data_dir, "item_title_map.txt")
     user_word_map_path = os.path.join(data_dir, "user_word_map.txt")
