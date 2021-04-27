@@ -6,8 +6,8 @@ Other related models will be implimented soon.
     waiting to update
 
 ### Run: ###
-    example: python main.py --structure_name=HEM --score_function=bias_product --device=cuda:0 --emb_dim=200 <br/>
-    parameters: </br>
+    example: python main.py --structure_name=HEM --score_function=bias_product --device=cuda:0 --emb_dim=200.  
+    parameters:   
      --structure_name: name of PPS model structure, including "HEM", "ZAM" and "HRNN_simple"
      --score_function: name of function which can measure <u,q,i> score, including "product", "bias_product"
      --data_root: name of datasets root file
@@ -26,6 +26,6 @@ Other related models will be implimented soon.
      --is_val: whether test model on validation set when training
      
 ### Reference: ###
- ·  Ai Q, Zhang Y, Bi K, et al. Learning a hierarchical embedding model for personalized product search[C]//Proceedings of the 40th International ACM SIGIR Conference on Research and Development in Information Retrieval. 2017: 645-654.
- ·  Ai Q, Hill D N, Vishwanathan S V N, et al. A zero attention model for personalized product search[C]//Proceedings of the 28th ACM International Conference on Information and Knowledge Management. 2019: 379-388.
- ·  Ge S, Dou Z, Jiang Z, et al. Personalizing search results using hierarchical RNN with query-aware attention[C]//Proceedings of the 27th ACM International Conference on Information and Knowledge Management. 2018: 347-356.
+ ·  Ai Q, Zhang Y, Bi K, et al. Learning a hierarchical embedding model for personalized product search[C]//Proceedings of the 40th International ACM SIGIR Conference on Research and Development in Information Retrieval. 2017: 645-654.  
+ ·  Ai Q, Hill D N, Vishwanathan S V N, et al. A zero attention model for personalized product search[C]//Proceedings of the 28th ACM International Conference on Information and Knowledge Management. 2019: 379-388.   
+ ·  Ge S, Dou Z, Jiang Z, et al. Personalizing search results using hierarchical RNN with query-aware attention[C]//Proceedings of the 27th ACM International Conference on Information and Knowledge Management. 2018: 347-356.   
