@@ -53,8 +53,8 @@ def load_data(structure_name, data_root):
 
     if structure_name == "HEM" or structure_name == "ZAM":
         data_dir = os.path.join(data_root, "forEM")
-    elif structure_name == "HRNN":
-        data_dir = os.path.join(data_root, "forHRNN")
+    elif structure_name == "HRNN_simple":
+        data_dir = os.path.join(data_root, "forHRNN_simple")
 
     item_title_map_path = os.path.join(data_dir, "item_title_map.txt")
     user_word_map_path = os.path.join(data_dir, "user_word_map.txt")
@@ -81,7 +81,7 @@ def load_data(structure_name, data_root):
     data_dict["valid_set"] = load_list(click_valid_path)
     data_dict["test_set"] = load_list(click_test_path)
 
-    if structure_name == "HEM" or "ZAM":
+    if structure_name == "HEM" or structure_name == "ZAM":
         data_dict["word_distribution"] = torch.Tensor(load_list(word_distribution_path)).view(-1)
         data_dict["item_distribution"] = torch.Tensor(load_list(item_distribution_path)).view(-1)
         user_word_map_with_lens = torch.Tensor(load_list(user_word_map_path))
@@ -94,7 +94,7 @@ def load_data(structure_name, data_root):
         data_dict["user_click_map"] = user_click_map_with_lens[:, 1::]
         data_dict["user_click_lens"] = user_click_map_with_lens[:, 0]
 
-    elif structure_name == "HRNN":
+    elif structure_name == "HRNN_simple":
         data_dict["query_click"] = torch.Tensor(load_list(query_click_path))
         data_dict["query_click_lens"] = torch.Tensor(load_list(query_click_lens_path))
         data_dict["query_short_his"] = torch.Tensor(load_list(query_short_his_path))
@@ -148,16 +148,15 @@ def load_model(args, data_dict):
     return model
 
 
-def run():
-    args = parse_args()
+def run(args):
     data_dict = load_data(args.structure_name, args.data_root)
     model = load_model(args, data_dict)
     print(model)
     item_num = data_dict["statistic_map"]["item_num"]
     device = torch.device(args.device)
     save_path = os.path.join(args.save_root, args.structure_name)
-    optimizer = torch.optim.Adam(model.paramters(), lr=args.LR)
-    torch_dataset = Data.TensorDataset(data_dict["train_set"])
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.LR)
+    torch_dataset = Data.TensorDataset(torch.Tensor(data_dict["train_set"]).to(device))
     train_loader = Data.DataLoader(
         dataset=torch_dataset,
         batch_size=args.batch_size,
@@ -192,5 +191,7 @@ def run():
     test_all_items(model, data_dict["test_set"], True, item_num, device)
 
 
-if "__name__" == "__main__":
-    run()
+if __name__ == "__main__":
+    args = parse_args()
+    print(args.structure_name)
+    run(args)
