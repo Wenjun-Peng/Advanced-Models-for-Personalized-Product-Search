@@ -67,21 +67,50 @@ class HEM(nn.Module):
         if self.score_func == "bias_product":
             self.word_bias_with_zero = torch.cat([self.word_bias,torch.zeros(1).to(self.device)],0)
             self.item_bias_with_zero = torch.cat([self.item_bias,torch.zeros(1).to(self.device)],0)
-    
+
+    def get_sim_score(self, X, Y, bias_ids=None, bias_map=None):
+        '''
+        :param X: batch of query, item or user
+        :param Y: batch of item or word
+        :param Y_ids: indices of Y
+        :param X_map: word_ids or item_ids corresponding to Y
+        :param bias_map: bias corresponding to word_ids or item_ids
+        :return: score of (X,Y)
+        '''
+
+        batch_size = X.size()[0]
+        X = X.view(batch_size, -1, self.emb_dim)
+        Y = Y.view(batch_size, -1, self.emb_dim)
+        if self.score_func == "cosine":
+            X_for_cos = X / torch.sqrt(torch.sum(X*X, -1), -1)
+            Y_for_cos = Y / torch.sqrt(torch.sum(Y*Y, -1), -1)
+            return torch.sum(X_for_cos*Y_for_cos, -1)
+
+        elif self.score_func == "bias_product":
+            B = torch.index_select(bias_map, 0, bias_ids).view(batch_size, -1)
+            return torch.sum(X*Y, -1) + B
+
+        else:
+            return torch.sum(X*Y, -1)
+
     def get_generation_loss(self, example_ids, example_emb_batch, example_word_map, example_lens, cadidate_distribution):
+        '''
+        :param example_ids: indices of item or user
+        :param example_emb_batch: embeddings of item or user
+        :param example_word_map: item title list or user word list
+        :param example_lens: item tiele lens or user word lens
+        :param cadidate_distribution: word distribution
+        :return: NCE Loss of (u,w) or (i,w) pair
+        '''
         batch_size = example_emb_batch.size()[0]
         
         example_word_index_batch = torch.index_select(example_word_map, 0, example_ids).view(-1).long()
         example_word_batch = torch.index_select(self.word_emb_with_zero, 0, example_word_index_batch).view(batch_size,-1,self.emb_dim)
         example_lens_batch = torch.index_select(example_lens, 0, example_ids)
-        example_emb_batch = example_emb_batch.view(batch_size,-1,self.emb_dim)
+        example_emb_batch = example_emb_batch.view(batch_size, -1, self.emb_dim)
 
-        if self.score_func == "bias_product":
-            example_word_bias_batch = torch.index_select(self.word_bias_with_zero, 0, example_word_index_batch).view(batch_size,-1)
-            sim_score = torch.sum(example_emb_batch * example_word_batch,2) + example_word_bias_batch
-        else:
-            sim_score = torch.sum(example_emb_batch * example_word_batch,2)
-        
+        sim_score = self.get_sim_score(example_emb_batch, example_word_batch, example_word_index_batch, self.word_bias_with_zero)
+
         mask_weight = sequence_mask_lt(example_lens_batch,sim_score.size()[1]).float()
 
         sim_score = sim_score.view(-1)
@@ -92,13 +121,9 @@ class HEM(nn.Module):
         
         noise_ids = torch.LongTensor(list(Data.WeightedRandomSampler(noise_ditribution, example_word_index_batch.size()[0]*self.neg_sample_num, True))).to(self.device)
         noise_word_batch = torch.index_select(self.word_embedding.weight, 0 ,noise_ids).view(batch_size, -1, self.emb_dim)
-        
-        if self.score_func == "bias_product":
-            noise_word_bias_batch = torch.index_select(self.word_bias_with_zero, 0, noise_ids).view(batch_size,-1)
-            noise_sim_score = torch.sum(example_emb_batch * noise_word_batch,2) + noise_word_bias_batch
-        else:
-            noise_sim_score = torch.sum(example_emb_batch * noise_word_batch,2)
-        
+
+        noise_sim_score = self.get_sim_score(example_emb_batch, noise_word_batch, noise_ids, self.word_bias_with_zero)
+
         noise_lens_batch = example_lens_batch*self.neg_sample_num
         noise_mask_weight = sequence_mask_lt(noise_lens_batch, noise_sim_score.size()[1]).float().view(batch_size, -1, 1)
         
@@ -109,34 +134,27 @@ class HEM(nn.Module):
         return pos_loss+neg_loss, [example_emb_batch, example_word_batch, noise_word_batch*noise_mask_weight]
     
     def get_uqi_loss(self, personalized_query, item_ids, item_emb_batch, item_distribution):
+        '''
+        :param personalized_query: projected query + user embedding
+        :param item_ids: indices of positive sample item
+        :param item_emb_batch: embeddings of positive sample item
+        :param item_distribution: item distribution
+        :return: NCE Loss of (u,q,i) pair
+        '''
         batch_size = item_emb_batch.size()[0]
-        
-        if self.score_func == "bias_product":
-            item_bias_batch = torch.index_select(self.item_bias_with_zero, 0 ,item_ids).view(batch_size,-1)
-            sim_score = torch.sum(personalized_query * item_emb_batch,1) + item_bias_batch
-        else:
-            sim_score = torch.sum(personalized_query * item_emb_batch,1)
-            
-        sim_score = sim_score.view(-1) 
-        
+
+        sim_score = self.get_sim_score(personalized_query, item_emb_batch, item_ids, self.item_bias_with_zero).view(-1)
         pos_loss = self.BCELoss_fun(sim_score, torch.ones_like(sim_score))
         
         noise_ditribution = item_distribution ** self.noise_rate
         noise_ids = torch.LongTensor(list(Data.WeightedRandomSampler(noise_ditribution, batch_size*self.neg_sample_num, True))).to(self.device)
         noise_item_batch = torch.index_select(self.item_embedding.weight, 0, noise_ids).view(batch_size,-1,self.emb_dim)
-        
-        if self.score_func == "bias_product":
-            noise_item_bias_batch = torch.index_select(self.item_bias_with_zero, 0 ,noise_ids).view(batch_size,-1)
-            noise_sim_score = torch.sum(personalized_query.view(batch_size,-1,self.emb_dim) * noise_item_batch,2) + noise_item_bias_batch
-        else:
-            noise_sim_score = torch.sum(personalized_query.view(batch_size,-1,self.emb_dim) * noise_item_batch,2)
-        
-        noise_sim_score = noise_sim_score.view(-1)
+
+        noise_sim_score = self.get_sim_score(personalized_query, noise_item_batch, noise_ids, self.item_bias_with_zero).view(-1)
         neg_loss = self.BCELoss_fun(noise_sim_score, torch.zeros_like(noise_sim_score).float().to(self.device))
         
         return pos_loss+neg_loss, [personalized_query, noise_item_batch]
-    
-    
+
     def forward(self, x):
         self.append_zero_vec()
         batch_size = x.size()[0]
@@ -178,8 +196,7 @@ class HEM(nn.Module):
         query_emb = torch.sum(query_word_batch,1).view(1,self.emb_dim) / query_len
         projected_query = self.query_project(query_emb)
         personalized_query = self.LAMBDA * projected_query + (1-self.LAMBDA) * user_emb
-        
-        sim_score = torch.sum(personalized_query*self.item_embedding.weight,1)
-        if self.score_func == "bias_product":
-            sim_score = sim_score + self.item_bias
+        item_ids = torch.range(0, self.item_embedding.weight.size()[0]-1).long()
+        sim_score = self.get_sim_score(personalized_query, self.item_embedding.weight, item_ids, self.item_bias)
+
         return sim_score

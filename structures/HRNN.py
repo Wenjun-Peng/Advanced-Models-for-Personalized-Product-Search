@@ -260,8 +260,6 @@ class HRNN_simple(nn.Module):
     def get_sim_score(self, interest, item):
         X = interest / torch.sqrt(torch.sum(interest * interest, 1)).view(-1, 1)
         Y = item / torch.sqrt(torch.sum(item * item, 1)).view(-1, 1)
-        # X = interest
-        # Y = item
         return torch.sum(X * Y, 1)
 
     def forward(self, x):
