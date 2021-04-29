@@ -7,7 +7,7 @@ from struct_functions import sequence_mask_eq
 
 class HRNN_simple(nn.Module):
     def __init__(self, word_num, item_num, emb_dim, num_layers, query_seg, query_seg_lens, query_click,
-                 query_click_lens, query_long_his, query_short_his, long_lens, short_lens, neg_num, device):
+                 query_click_lens, query_long_his, query_short_his, long_lens, short_lens, neg_num, score_func, device):
         super(HRNN_simple, self).__init__()
 
         self.word_num = word_num
@@ -31,7 +31,7 @@ class HRNN_simple(nn.Module):
         self.query_click_lens = query_click_lens.to(device)
 
         self.neg_num = neg_num
-
+        self.score_func = score_func
         self.device = device
 
         self.word_embedding = nn.Embedding(
@@ -258,9 +258,14 @@ class HRNN_simple(nn.Module):
 
 
     def get_sim_score(self, interest, item):
-        X = interest / torch.sqrt(torch.sum(interest * interest, 1)).view(-1, 1)
-        Y = item / torch.sqrt(torch.sum(item * item, 1)).view(-1, 1)
-        return torch.sum(X * Y, 1)
+        if self.score_func == "cosine":
+            X = interest / torch.sqrt(torch.sum(interest * interest, 1)).view(-1, 1)
+            Y = item / torch.sqrt(torch.sum(item * item, 1)).view(-1, 1)
+            return torch.sum(X*Y, 1)
+        else:
+            X = interest
+            Y = item
+            return torch.sum(X*Y, 1)
 
     def forward(self, x):
         self.append_zero_vec()

@@ -83,6 +83,6 @@ class ZAM(HEM):
 
         projected_query = self.query_project(query_emb)
         personalized_query = self.LAMBDA * projected_query + (1-self.LAMBDA) * user_emb
-        item_ids = torch.range(0, self.item_embedding.weight.size()[0] - 1).long()
-        sim_score = self.get_sim_score(personalized_query, self.item_embedding.weight, item_ids, self.item_bias)
+        item_ids = torch.arange(0, self.item_embedding.weight.size()[0]).long().to(self.device)
+        sim_score = self.get_sim_score(personalized_query, self.item_embedding.weight, item_ids, self.item_bias).view(-1)
         return sim_score

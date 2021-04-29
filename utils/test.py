@@ -8,7 +8,7 @@ from tools import load_list
 from tools import load_json
 
 
-def test_all_items(model, data_set, is_show, item_num, device):
+def test_all_items(model, test_set, is_show, item_num, device):
     '''
     :param model: model for test
     :param data_set: test data: could be test set or valid set
@@ -17,7 +17,7 @@ def test_all_items(model, data_set, is_show, item_num, device):
     :param device: running device
     :return: none
     '''
-    test_set = data_set.numpy().to_list()
+    # test_set = data_set.numpy().to_list()
 
     ndcg_at5s = []
     ndcg_at10s = []
@@ -62,9 +62,10 @@ def test_all_items(model, data_set, is_show, item_num, device):
             q_id = torch.LongTensor([query_index]).to(device)
 
             sim_score = model.all_item_test(u_id, q_id)
-
+            # print(sim_score.size())
             # sort items with sim score produced by model
             sortedRes, indices = torch.sort(sim_score.cpu(), 0, descending=True)
+            # print(indices[0:10])
             rankRes = torch.index_select(res, 0, indices[0:10]).view(-1)
             # print(u_id,q_id,indices[0:10])
             # calculate ndcg

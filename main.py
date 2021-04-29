@@ -38,6 +38,7 @@ def parse_args(args=None):
     parser.add_argument('--neg_sample_num', default=10, type=int)
     parser.add_argument('--noise_rate', default=0.75, type=float)
     parser.add_argument('--is_val', default=True, type=bool)
+    parser.add_argument('--test_epoch', default=3, type=int)
 
     return parser.parse_args(args)
 
@@ -81,7 +82,7 @@ def load_data(structure_name, data_root):
     data_dict["valid_set"] = load_list(click_valid_path)
     data_dict["test_set"] = load_list(click_test_path)
 
-    if structure_name == "HEM" or structure_name == "ZAM":
+    if structure_name == "HEM" or structure_name == "ZAM" or structure_name == "AEM":
         data_dict["word_distribution"] = torch.Tensor(load_list(word_distribution_path)).view(-1)
         data_dict["item_distribution"] = torch.Tensor(load_list(item_distribution_path)).view(-1)
         user_word_map_with_lens = torch.Tensor(load_list(user_word_map_path))
@@ -93,6 +94,9 @@ def load_data(structure_name, data_root):
         user_click_map_with_lens = torch.Tensor(load_list(user_click_map_path))
         data_dict["user_click_map"] = user_click_map_with_lens[:, 1::]
         data_dict["user_click_lens"] = user_click_map_with_lens[:, 0]
+        
+        if structure_name == "AEM":
+           data_dict["user_click_lens"] = user_click_map_with_lens[:, 0] - 1
 
     elif structure_name == "HRNN_simple":
         data_dict["query_click"] = torch.Tensor(load_list(query_click_path))
@@ -113,7 +117,6 @@ def load_model(args, data_dict):
     L2_weight = args.L2_weight
     score_func = args.score_function
     device = torch.device(args.device)
-
     word_num = data_dict["statistic_map"]["word_num"]
     item_num = data_dict["statistic_map"]["item_num"]
 
@@ -126,9 +129,9 @@ def load_model(args, data_dict):
                     data_dict["query_seg_lens"], data_dict["word_distribution"], data_dict["item_distribution"],
                     neg_sample_num, noise_rate, LAMBDA, L2_weight, score_func, device).to(device)
 
-    elif args.structure_name == "ZAM":
+    elif args.structure_name == "ZAM" or args.structure_name == "AEM":
         user_num = data_dict["statistic_map"]["user_num"]
-        behavior_len = data_dict["statistic_map"]["behavior_len"]
+        behavior_len = data_dict["statistic_map"]["max_click_len"]
 
         att_hidden_units_num = args.att_hidden_units_num
         model = ZAM(word_num, item_num, user_num, emb_dim, behavior_len, att_hidden_units_num,
@@ -143,7 +146,7 @@ def load_model(args, data_dict):
         model = HRNN_simple(word_num, item_num, emb_dim, num_layers, data_dict["query_seg_map"],
                            data_dict["query_seg_lens"], data_dict["query_click"], data_dict["query_click_lens"],
                            data_dict["query_long_his"], data_dict["query_short_his"], data_dict["query_long_lens"],
-                           data_dict["query_short_lens"], neg_sample_num, device).to(device)
+                           data_dict["query_short_lens"], neg_sample_num, score_func,  device).to(device)
 
     return model
 
@@ -154,7 +157,7 @@ def run(args):
     print(model)
     item_num = data_dict["statistic_map"]["item_num"]
     device = torch.device(args.device)
-    save_path = os.path.join(args.save_root, args.structure_name)
+    save_path = os.path.join(args.save_root, args.structure_name+".pkl")
     optimizer = torch.optim.Adam(model.parameters(), lr=args.LR)
     torch_dataset = Data.TensorDataset(torch.Tensor(data_dict["train_set"]).to(device))
     train_loader = Data.DataLoader(
@@ -162,7 +165,8 @@ def run(args):
         batch_size=args.batch_size,
         shuffle=True
     )
-
+    
+    max_ndcg_at5 = 0
     start = time.time()
     for epoch in range(args.EPOCH):
         for step, [b_x, ] in enumerate(train_loader):

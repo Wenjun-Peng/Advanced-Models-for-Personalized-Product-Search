@@ -78,16 +78,17 @@ class HEM(nn.Module):
         :return: score of (X,Y)
         '''
 
-        batch_size = X.size()[0]
-        X = X.view(batch_size, -1, self.emb_dim)
-        Y = Y.view(batch_size, -1, self.emb_dim)
+        X_batch_size = X.size()[0]
+        Y_batch_size = Y.size()[0]
+        X = X.view(X_batch_size, -1, self.emb_dim)
+        Y = Y.view(Y_batch_size, -1, self.emb_dim)
         if self.score_func == "cosine":
             X_for_cos = X / torch.sqrt(torch.sum(X*X, -1), -1)
             Y_for_cos = Y / torch.sqrt(torch.sum(Y*Y, -1), -1)
             return torch.sum(X_for_cos*Y_for_cos, -1)
 
         elif self.score_func == "bias_product":
-            B = torch.index_select(bias_map, 0, bias_ids).view(batch_size, -1)
+            B = torch.index_select(bias_map, 0, bias_ids).view(Y_batch_size, -1)
             return torch.sum(X*Y, -1) + B
 
         else:
@@ -196,7 +197,7 @@ class HEM(nn.Module):
         query_emb = torch.sum(query_word_batch,1).view(1,self.emb_dim) / query_len
         projected_query = self.query_project(query_emb)
         personalized_query = self.LAMBDA * projected_query + (1-self.LAMBDA) * user_emb
-        item_ids = torch.range(0, self.item_embedding.weight.size()[0]-1).long()
-        sim_score = self.get_sim_score(personalized_query, self.item_embedding.weight, item_ids, self.item_bias)
+        item_ids = torch.arange(0, self.item_embedding.weight.size()[0]).long().to(self.device)
+        sim_score = self.get_sim_score(personalized_query, self.item_embedding.weight, item_ids, self.item_bias).view(-1)
 
         return sim_score
